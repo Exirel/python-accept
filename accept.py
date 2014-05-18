@@ -75,11 +75,43 @@ class HeaderAccept(list):
         self.max_quality = max(item.quality for item in self)
 
     def __contains__(self, value):
+        """Override contains to compare with a mimetype and a quality
+
+        The comparison is done with an equality between the value provided
+        and any item in self. The ``value`` might not be an instance of
+        HeaderAcceptValue, but as long as it implements an __eq__ method,
+        it might be compared with any other HeaderAcceptValue-like object
+        contained into self.
+
+        If ``value`` doesn't have ``mimetype`` or ``quality`` attributes,
+        this method will try to unpack a two-value iterable (tuple or list),
+        and then compare with any item's mimetype and item's quality.
+
+        Finally, if none of these can be done, the value will be compare with
+        any item's mimetype.
+
+        """
         if hasattr(value, 'mimetype') and hasattr(value, 'quality'):
             return any(
+                # Will call value.__eq__(item)
+                # If value does not override __eq__
+                # this should always returns False
                 value == item
                 for item in self
             )
+
+        # Try with a (mimetype, quality) value
+        try:
+            mimetype, quality = value
+            return any(
+                mimetype == item.mimetype and quality == item.quality
+                for item in self
+            )
+        except ValueError:
+            # Can not unpack value... too bad.
+            pass
+
+        # Guess the value is a string to compare with any item's mimetype
         return any(
             value == item.mimetype
             for item in self
