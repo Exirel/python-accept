@@ -154,6 +154,10 @@ def test_HeaderAcceptValue_equals():
     assert accept_html != accept_html_low
     assert accept_html != accept_xhtml
 
+    not_equal = object()  # Does not have mimetype nor quality attribute
+    assert not (accept_html == not_equal)
+    assert accept_html != not_equal
+
 
 def test_HeaderAcceptValue_sort():
     """Assert sorting list of HeaderAcceptValue objects"""
@@ -181,6 +185,18 @@ def test_HeaderAcceptValue_sort():
         accept_xml,
         accept_html
     ]
+
+    # Can not be compared with object without quality
+    with raises(ValueError):
+        sorted([1, 2, accept_html])
+
+    class Fake(object):
+        quality = 0.8
+
+    fake_type = Fake()
+
+    assert sorted([fake_type, accept_html]) == [fake_type, accept_html]
+    assert sorted([accept_html, fake_type]) == [fake_type, accept_html]
 
 
 def test_HeaderAcceptValue_compare():

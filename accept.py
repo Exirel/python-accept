@@ -2,15 +2,57 @@
 from argparse import ArgumentParser
 
 
+HTML_MIMETYPES = [
+    'text/html',
+    'application/xhtml',
+    'application/xhtml+xml'
+]
+
+
 def split_accept_header(accept_header):
-    return (value.strip() for value in accept_header.split(','))
+    """Split accept header into accept header value's data and return generator
+
+    One can iterate over the result of this function's call, at it returns
+    a generator - or transforme the result into a python list:
+
+        >>> list(split_accept_header('text/html, application/xml;q=0.8'))
+        ['text/html', 'application/xml;q=0.8']
+
+    This function can be used, for example, with ``parse_accept_value``:
+
+        >>> values = split_accept_header('text/html, application/xml;q=0.8')
+        >>> for value in values:
+        ...     # do something here with the value
+
+    See ``parse_accept_value`` for more information.
+
+    """
+    return (value for value in accept_header.replace(' ', '').split(','))
 
 
 def parse_accept_value(accept_value):
+    """Split an accept header value into severals key into a dict.
+
+    You can give a value like ``text/html``, or like ``application/xml;q=0.8``,
+    and this function will returns a dict with two keys:
+
+    * ``mimetype``: the parsed mimetype as a string
+    * ``options``: a dict of {key: value} from the ``key=value`` part.
+
+    For example:
+
+        >>> parse_accept_value('text/html')
+        {'mimetype': 'text/html', 'options': {}}
+        >>> parse_accept_value('text/html;q=0.8')
+        {'mimetype': 'text/html', 'options': {'q': '0.8'}}
+        >>> parse_accept_value('text/html;q=0.8;level=1')
+        {'mimetype': 'text/html', 'options': {'q': '0.8', 'level': '1'}}
+
+    """
     values = accept_value.split(';')
     mimetype = values.pop(0).strip()
     args = dict(
-        [part.strip() for part in value.split('=')]
+        [part for part in value.replace(' ', '').split('=')]
         for value in values
     )
     return {
@@ -20,6 +62,32 @@ def parse_accept_value(accept_value):
 
 
 class HeaderAcceptValue(object):
+    """Represent one value of an HTTP Request Accept header.
+
+    An Accept header value is composed of a mimetype and a list of options,
+    such as ``q`` (reserved key), or any custom key. An HTTP server may use
+    one, both, or none of any information from an Accept value.
+
+    To help with sorting and comparison, this class override behavior of some
+    magical functions: __eq__, __ne__, and __cmp__. Still, an HeaderAcceptValue
+    is not an hashable, as it is still mutable (even if this is not very
+    useful, and should possibly forbidden).
+
+    This class can be easily combined with ``parse_accept_value`` to be
+    instantiated:
+
+        >>> info = parse_accept_value('text/html;q=0.8;level=1')
+        >>> mimetype = info.get('mimetype')
+        >>> options = info.get('options', {})
+        >>> value = HeaderAcceptValue(mimetype, **options)
+        >>> value.mimetype
+        'text/html'
+        >>> value.quality
+        0.8
+        >>> value.options
+        {'q': '0.8', 'level': '1'}
+
+    """
     def __init__(self, mimetype, **options):
         self.mimetype = mimetype
         self.options = {}
@@ -43,7 +111,7 @@ class HeaderAcceptValue(object):
 
     def __cmp__(self, other):
         if not hasattr(other, 'quality'):
-            return 0
+            raise ValueError('Can not compare with %r' % type(other))
 
         if self.quality > other.quality:
             return 1
@@ -67,7 +135,7 @@ class HeaderAcceptValue(object):
         )
 
 
-class HeaderAccept(list):
+class HeaderAcceptList(list):
     def __init__(self, *args, **kwargs):
         list.__init__(self, *args, **kwargs)
         self.sort()  # Sort from lowest to highest quality onlty to...
@@ -123,34 +191,18 @@ class HeaderAccept(list):
         ]
         return self.is_html_accepted(strict=True) or len(top_accepts) > 1
 
-    def is_accepted(self, mimetype, strict=False):
-        result = mimetype in self
-        if strict:
-            return result
-
-        partial_mimetype = '%s/*' % mimetype.split('/')[0]
-        return result or any(
-            item.mimetype in [partial_mimetype, '*/*']
-            for item in self
-        )
-
     def is_html_accepted(self, strict=False):
-        html_type = [
-            'text/html',
-            'application/xhtml',
-            'application/xhtml+xml'
-        ]
+        mimetypes_compare = HTML_MIMETYPES
+
         if not strict:
-            html_type += [
-                'text/*',
-                '*/*',
+            mimetypes_compare = HTML_MIMETYPES + [
+                'text/*', 'application/*', '*/*'
             ]
 
-        return any(
-            item.mimetype in html_type
-            for item in self
-            if item.quality == self.max_quality
-        )
+        return any(accept_value in self for accept_value in (
+            HeaderAcceptValue(mimetype, q=self.max_quality)
+            for mimetype in mimetypes_compare
+        ))
 
 
 if __name__ == '__main__':
@@ -161,7 +213,7 @@ if __name__ == '__main__':
 
     arguments = parser.parse_args()
     print arguments.header
-    accepts = HeaderAccept(
+    accepts = HeaderAcceptList(
         HeaderAcceptValue(
             info.get('mimetype'), **info.get('options', {})
         )
