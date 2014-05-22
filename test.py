@@ -4,6 +4,7 @@
 import accept
 
 from pytest import raises  # IGNORE:E0611
+from accept import HeaderAcceptValue
 
 
 def test_split_accept_header():
@@ -228,3 +229,104 @@ def test_HeaderAcceptValue_compare():
     # Symetric operation
     assert accept_xml <= accept_wildcard
     assert accept_xml >= accept_wildcard
+
+
+# -----------------------------------------------------------------------------
+
+
+def test_HeaderAcceptList():
+    accept_html = accept.HeaderAcceptValue('text/html', q='0.8')
+    accept_xml = accept.HeaderAcceptValue('application/xml', q='0.5')
+    accepts = accept.HeaderAcceptList([accept_html, accept_xml])
+
+    assert accepts.max_quality == 0.8
+    assert len(accepts) == 2
+    assert list(accepts) == [accept_html, accept_xml]
+
+
+def test_HeaderAcceptList_contains():
+    accept_html = accept.HeaderAcceptValue('text/html', q='0.8')
+    accept_xml = accept.HeaderAcceptValue('application/xml', q='0.5')
+    accepts = accept.HeaderAcceptList([accept_html, accept_xml])
+
+    same_accept_html = HeaderAcceptValue(
+        accept_html.mimetype, q=accept_html.quality
+    )
+    not_same_accept_html = HeaderAcceptValue(
+        accept_html.mimetype, q='0.1'
+    )
+
+    assert accept_html in accepts
+    assert accept_xml in accepts
+    assert same_accept_html in accepts
+    assert not_same_accept_html not in accepts
+
+
+def test_HeaderAcceptList_contains_tuple():
+    accept_html = accept.HeaderAcceptValue('text/html', q='0.8')
+    accept_xml = accept.HeaderAcceptValue('application/xml', q='0.5')
+    accepts = accept.HeaderAcceptList([accept_html, accept_xml])
+
+    assert ('text/html', '0.8') in accepts
+    assert ('application/xml', '0.5') in accepts
+    assert ('text/html', 0.8) in accepts
+    assert ('application/xml', 0.5) in accepts
+    assert ('text/html', '0.5') not in accepts
+    assert ('text/html', 0.5) not in accepts
+
+
+def test_HeaderAcceptList_contains_mimetype():
+    accept_html = accept.HeaderAcceptValue('text/html', q='0.8')
+    accept_xml = accept.HeaderAcceptValue('application/xml', q='0.5')
+    accepts = accept.HeaderAcceptList([accept_html, accept_xml])
+
+    assert 'text/html' in accepts
+    assert 'application/xml' in accepts
+    assert 'text/plain' not in accepts
+
+
+def test_HeaderAcceptList_get_max_quality_accept():
+    accept_html = accept.HeaderAcceptValue('text/html', q='0.8')
+    accept_xml = accept.HeaderAcceptValue('application/xml', q='0.5')
+    accepts = accept.HeaderAcceptList([accept_html, accept_xml])
+
+    result = accepts.get_max_quality_accept()
+
+    assert list(result) == [accept_html]
+    assert isinstance(result, accept.HeaderAcceptList)
+    assert accept_html in result
+    assert accept_xml not in result
+
+
+def test_HeaderAcceptList_is_html_accepted():
+    accept_html = accept.HeaderAcceptValue('text/html', q='0.8')
+    accept_xhtml = accept.HeaderAcceptValue('application/xhtml', q='0.8')
+    accept_xhtml_xml = accept.HeaderAcceptValue(
+        'application/xhtml+xml', q='0.8'
+    )
+    accept_xml = accept.HeaderAcceptValue('application/xml', q='0.5')
+
+    accepts = accept.HeaderAcceptList([accept_html, accept_xml])
+    accepts_xhtml = accept.HeaderAcceptList([accept_xhtml, accept_xml])
+    accepts_xhtml_xml = accept.HeaderAcceptList([accept_xhtml_xml, accept_xml])
+
+    assert accepts.is_html_accepted(strict=True) is True
+    assert accepts_xhtml.is_html_accepted(strict=True) is True
+    assert accepts_xhtml_xml.is_html_accepted(strict=True) is True
+
+    accepts = accept.HeaderAcceptList([accept_xml])
+    assert accepts.is_html_accepted(strict=True) is False
+
+
+def test_HeaderAcceptList_is_html_accepted_wildcard():
+    accept_text_wildcard = accept.HeaderAcceptValue('text/*', q='0.8')
+    accept_application_wildcard = accept.HeaderAcceptValue(
+        'application/*', q='0.8'
+    )
+    accept_wildcard = accept.HeaderAcceptValue('*/*', q='0.8')
+
+    accepts = accept.HeaderAcceptList([
+        accept_text_wildcard, accept_application_wildcard, accept_wildcard
+    ])
+    assert accepts.is_html_accepted(strict=True) is False
+    assert accepts.is_html_accepted() is True

@@ -89,27 +89,34 @@ class HeaderAcceptValue(object):
 
     """
     def __init__(self, mimetype, **options):
+        """Build with a mimetype and save options
+
+        The specific parameter ``q`` is saved into the ``quality`` attribute,
+        while all options are kept in ``options`` attribute (including ``q``).
+
+        """
         self.mimetype = mimetype
-        self.options = {}
-        self.quality = None
-        self.set_options(options)
-
-    def set_options(self, options):
-        quality = (
-            value
-            for key, value in options.iteritems()
-            if key == 'q'
-        )
-        for value in quality:
-            self.quality = float(value)
-            break
-
-        if self.quality is None:
-            self.quality = 1.0
-
+        self.quality = float(options.get('q', 1.0)) if 'q' in options else 1.0
         self.options = options
 
     def __cmp__(self, other):
+        """Compare with other using quality attribute.
+
+        This method will only be able to compare with other with a ``quality``
+        attribute. One may use duck typing to compare two instances of
+        different classes without error.
+
+        One is greater than other if its quality is greater. The same way,
+        it is lower than other if its quality is lower. Else, they are
+        considered equal.
+
+        If ``other`` does not have a ``quality`` attribute, a ValueError will
+        be raised.
+
+        Therefore, one will need to provide a compare method when using sorted
+        on a list containing both HeaderAcceptValue instance and invalid one.
+
+        """
         if not hasattr(other, 'quality'):
             raise ValueError('Can not compare with %r' % type(other))
 
@@ -121,6 +128,12 @@ class HeaderAcceptValue(object):
         return 0
 
     def __eq__(self, other):
+        """Return True if other is considered equal to self.
+
+        Both are equal if other has the same ``mimetype`` and ``quality``
+        values. In any other cases, they won't be equal.
+
+        """
         if not hasattr(other, 'mimetype') or not hasattr(other, 'quality'):
             return False
         return (
@@ -128,6 +141,12 @@ class HeaderAcceptValue(object):
         )
 
     def __ne__(self, other):
+        """Return True if other is not considered equal to self.
+
+        They are not equal if other has not the same ``mimetype`` nor
+        ``quality`` values. In any other cases, they are considered equal.
+
+        """
         if not hasattr(other, 'mimetype') or not hasattr(other, 'quality'):
             return True
         return (
@@ -136,10 +155,30 @@ class HeaderAcceptValue(object):
 
 
 class HeaderAcceptList(list):
+    """Smart list for HeaderAcceptValue with specific behaviors
+
+    HeaderAcceptList overrides the contains list's behavior to be able to
+    compare properly two (kind of) HeaderAcceptValue.
+
+    One can use it like this:
+
+        >>> accept_html = HeaderAcceptValue('text/html', q=1.0)
+        >>> accept_text = HeaderAcceptValue('text/*', q=0.9)
+        >>> accept_wildcard = HeaderAcceptValue('*/*', q=0.8)
+        >>> accepts = HeaderAcceptList([
+        ...     accept_html, accept_text, accept_wildcard
+        ... ])
+        >>> accepts.max_quality
+        1.0
+        >>> 'text/html' in accepts
+        True
+        >>> accepts.is_html_accept()
+        True
+
+    """
     def __init__(self, *args, **kwargs):
+        """Build the list and extract the max quality value"""
         list.__init__(self, *args, **kwargs)
-        self.sort()  # Sort from lowest to highest quality onlty to...
-        self.reverse()  # ... reverse the order of course!
         self.max_quality = max(item.quality for item in self)
 
     def __contains__(self, value):
@@ -172,7 +211,7 @@ class HeaderAcceptList(list):
         try:
             mimetype, quality = value
             return any(
-                mimetype == item.mimetype and quality == item.quality
+                mimetype == item.mimetype and str(quality) == str(item.quality)
                 for item in self
             )
         except ValueError:
@@ -185,13 +224,21 @@ class HeaderAcceptList(list):
             for item in self
         )
 
-    def is_from_browser(self):
-        top_accepts = [
-            item for item in self if item.quality == self.max_quality
-        ]
-        return self.is_html_accepted(strict=True) or len(top_accepts) > 1
+    def get_max_quality_accept(self):
+        """Return a new instance of self's class with only max quality accepts
+
+        This method can be used to retrieve only the top-level accepted
+        mimetype in order to perform the first level of content negotiation.
+
+        """
+        return self.__class__(
+            item
+            for item in self
+            if item.quality == self.max_quality
+        )
 
     def is_html_accepted(self, strict=False):
+        """Return True if HTML is an accepted type for this list."""
         mimetypes_compare = HTML_MIMETYPES
 
         if not strict:
@@ -232,4 +279,4 @@ if __name__ == '__main__':
     print '0 in accepts: ', accepts[0] in accepts
     print 'accepts HTML: ', accepts.is_html_accepted()
     print 'accepts HTML (strict): ', accepts.is_html_accepted(strict=True)
-    print 'is from browser: ', accepts.is_from_browser()
+    print 'top accept: ', accepts.get_max_quality_accept()
