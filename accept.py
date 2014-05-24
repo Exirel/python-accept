@@ -250,33 +250,3 @@ class HeaderAcceptList(list):
             HeaderAcceptValue(mimetype, q=self.max_quality)
             for mimetype in mimetypes_compare
         ))
-
-
-if __name__ == '__main__':
-    parser = ArgumentParser(
-        description='Show info of an Accept HTTP Header'
-    )
-    parser.add_argument('header')
-
-    arguments = parser.parse_args()
-    print arguments.header
-    accepts = HeaderAcceptList(
-        HeaderAcceptValue(
-            info.get('mimetype'), **info.get('options', {})
-        )
-        for info in (
-        parse_accept_value(value)
-        for value in split_accept_header(arguments.header)
-    ))
-
-    for accept in accepts:
-        print accept.mimetype, accept.quality, accept.options
-
-    print (
-        'text/html in accepts: ',
-        HeaderAcceptValue('text/html', q='1.0') in accepts
-    )
-    print '0 in accepts: ', accepts[0] in accepts
-    print 'accepts HTML: ', accepts.is_html_accepted()
-    print 'accepts HTML (strict): ', accepts.is_html_accepted(strict=True)
-    print 'top accept: ', accepts.get_max_quality_accept()
