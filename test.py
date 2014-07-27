@@ -8,7 +8,12 @@ from accept import HeaderAcceptValue
 
 
 def test_split_accept_header():
-    """Assert split_accept_header basic behavior"""
+    """Assert split_accept_header basic behavior
+
+    Input: 'text/html'
+    Output: ['text/html']
+
+    """
     accept_header = 'text/html'
     result = accept.split_accept_header(accept_header)
 
@@ -18,7 +23,12 @@ def test_split_accept_header():
 
 
 def test_split_accept_header_with_q():
-    """Assert split_accept_header behavior with quality option"""
+    """Assert split_accept_header behavior with quality option
+
+    Input: 'text/html;q=1.0'
+    Output: ['text/html;q=1.0']
+
+    """
     accept_header = 'text/html;q=1.0'
     result = accept.split_accept_header(accept_header)
 
@@ -28,7 +38,14 @@ def test_split_accept_header_with_q():
 
 
 def test_split_accept_header_multiple_values():
-    """Assert split_accept_header behavior with multiple Accept values"""
+    """Assert split_accept_header behavior with multiple Accept values
+
+    Input: 'text/html,application/xml'
+    Output: ['text/html', 'application/xml']
+
+    Spaces are ignored.
+
+    """
     accept_header = 'text/html,application/xml'
     result = accept.split_accept_header(accept_header)
 
@@ -51,6 +68,11 @@ def test_split_accept_header_multiple_values_and_quality():
     """Assert split_accept_header behavior with multiple Accept values and
     options
 
+    Input: 'text/html,application/xml;q=0.8'
+    Output: ['text/html', 'application/xml;q=0.8']
+
+    Spaces are ignored.
+
     """
     accept_header = 'text/html,application/xml;q=0.8'
     result = accept.split_accept_header(accept_header)
@@ -61,7 +83,7 @@ def test_split_accept_header_multiple_values_and_quality():
         result.next()
 
     # Same with space
-    accept_header = 'text/html, application/xml;q=0.8'
+    accept_header = 'text/html, application/xml; q=0.8'
     result = accept.split_accept_header(accept_header)
 
     assert result.next() == 'text/html'
@@ -72,10 +94,24 @@ def test_split_accept_header_multiple_values_and_quality():
 
 # -----------------------------------------------------------------------------
 
+
 def test_parse_accept_value():
     """Assert parse_accept_value basic behavior"""
     test_value = 'text/html'
     expected = {'mimetype': 'text/html', 'options': {}}
+    assert accept.parse_accept_value(test_value) == expected
+
+
+def test_parse_accept_value_none():
+    """Assert parse_accept_value raise a TypeError with None"""
+    with raises(TypeError):
+        accept.parse_accept_value(None)
+
+
+def test_parse_accept_value_empty():
+    """Assert parse_accept_value with an empty input string"""
+    test_value = ''
+    expected = {'mimetype': '', 'options': {}}
     assert accept.parse_accept_value(test_value) == expected
 
 
@@ -231,6 +267,18 @@ def test_HeaderAcceptValue_compare():
     assert accept_xml >= accept_wildcard
 
 
+def test_HeaderAcceptValue_to_http():
+    """Assert value.to_http() returns expected string value"""
+    accept_html = accept.HeaderAcceptValue(mimetype='text/html')
+    accept_xml = accept.HeaderAcceptValue(mimetype='application/xml', q='0.9')
+    accept_text_level = accept.HeaderAcceptValue(
+        mimetype='text/plain', level='1', version='1.0'
+    )
+
+    assert accept_html.to_http() == 'text/html'
+    assert accept_xml.to_http() == 'application/xml;q=0.9'
+    assert accept_text_level.to_http() == 'text/plain;version=1.0;level=1'
+
 # -----------------------------------------------------------------------------
 
 
@@ -242,6 +290,22 @@ def test_HeaderAcceptList():
     assert accepts.max_quality == 0.8
     assert len(accepts) == 2
     assert list(accepts) == [accept_html, accept_xml]
+
+
+def test_HeaderAcceptList_append():
+    accept_html = accept.HeaderAcceptValue('text/html', q='0.8')
+    accept_xml = accept.HeaderAcceptValue('application/xml', q='1.0')
+    accepts = accept.HeaderAcceptList([accept_html])
+
+    assert accepts.max_quality == 0.8
+    assert len(accepts) == 1
+
+    accepts.append(accept_xml)
+    assert accepts.max_quality == 1.0
+    assert len(accepts) == 2
+
+    with raises(TypeError):
+        accepts.append(object())
 
 
 def test_HeaderAcceptList_contains():
@@ -283,6 +347,19 @@ def test_HeaderAcceptList_contains_mimetype():
     assert 'text/html' in accepts
     assert 'application/xml' in accepts
     assert 'text/plain' not in accepts
+
+
+def test_HeaderAcceptList_to_http():
+    """Assert value.to_http() returns expected string value"""
+    accept_html = accept.HeaderAcceptValue(mimetype='text/html')
+    accept_xml = accept.HeaderAcceptValue(mimetype='application/xml', q='0.9')
+    accept_text = accept.HeaderAcceptValue(
+        mimetype='text/plain', level='1', version='1.0'
+    )
+    expected = 'text/html,text/plain;version=1.0;level=1,application/xml;q=0.9'
+
+    accepts = accept.HeaderAcceptList([accept_html, accept_xml, accept_text])
+    assert accepts.to_http() == expected
 
 
 def test_HeaderAcceptList_get_max_quality_accept():

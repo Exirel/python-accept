@@ -1,6 +1,4 @@
 # -*- coding: utf-8 -*-
-from argparse import ArgumentParser
-
 
 HTML_MIMETYPES = [
     'text/html',
@@ -13,7 +11,7 @@ def split_accept_header(accept_header):
     """Split accept header into accept header value's data and return generator
 
     One can iterate over the result of this function's call, at it returns
-    a generator - or transforme the result into a python list:
+    a generator - or transform the result into a python list:
 
         >>> list(split_accept_header('text/html, application/xml;q=0.8'))
         ['text/html', 'application/xml;q=0.8']
@@ -22,7 +20,10 @@ def split_accept_header(accept_header):
 
         >>> values = split_accept_header('text/html, application/xml;q=0.8')
         >>> for value in values:
-        ...     # do something here with the value
+        ...     print(parse_accept_value(value))
+        ...
+        {'mimetype': 'text/html', 'options': {}}
+        {'mimetype': 'application/xml', 'options': {'q': '0.8'}}
 
     See ``parse_accept_value`` for more information.
 
@@ -47,8 +48,14 @@ def parse_accept_value(accept_value):
         {'mimetype': 'text/html', 'options': {'q': '0.8'}}
         >>> parse_accept_value('text/html;q=0.8;level=1')
         {'mimetype': 'text/html', 'options': {'q': '0.8', 'level': '1'}}
-
+ 
     """
+    if accept_value is None:
+        raise TypeError(
+            'parse_accept_value() argument must be a string, '
+            'not \'%s\'' % type(accept_value)
+        )
+
     values = accept_value.split(';')
     mimetype = values.pop(0).strip()
     args = dict(
@@ -153,6 +160,19 @@ class HeaderAcceptValue(object):
             self.mimetype != other.mimetype or self.quality != other.quality
         )
 
+    def to_http(self):
+        """Return the HTTP Header string value of the Accept header value.
+
+        Options are not ordered because they are stored as a dict.
+
+        """
+        options = [
+            '='.join([key, value]) for key, value in self.options.iteritems()
+        ]
+        return ';'.join(
+            [self.mimetype] + options
+        )
+
 
 class HeaderAcceptList(list):
     """Smart list for HeaderAcceptValue with specific behaviors
@@ -222,6 +242,26 @@ class HeaderAcceptList(list):
         return any(
             value == item.mimetype
             for item in self
+        )
+
+    def append(self, x):
+        """Override append to update max_quality on list update."""
+        if not hasattr(x, 'quality') or not hasattr(x, 'mimetype'):
+            raise TypeError(
+                'append() only accept object with '
+                'a \'quality\' and a \'mimetype\' attribute, '
+                'not \'%s\'' % type(x)
+            )
+
+        if self.max_quality < x.quality:
+            self.max_quality = x.quality
+
+        return list.append(self, x)
+
+    def to_http(self):
+        """Return the HTTP Header string value of the Accept header list"""
+        return ','.join(
+            value.to_http() for value in sorted(self, reverse=True)
         )
 
     def get_max_quality_accept(self):
