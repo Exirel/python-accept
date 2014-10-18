@@ -56,10 +56,12 @@ def test_HeaderAccept_contains_tuple():
 
     assert ('text/html', '0.8') in accepts
     assert ('application/xml', '0.5') in accepts
-    assert ('text/html', 0.8) in accepts
-    assert ('application/xml', 0.5) in accepts
+    assert ('text/html', Decimal('0.8')) in accepts
+    assert ('application/xml', Decimal('0.5')) in accepts
+
+    # Mimetype exists but not the same quality
     assert ('text/html', '0.5') not in accepts
-    assert ('text/html', 0.5) not in accepts
+    assert ('text/html', Decimal('0.5')) not in accepts
 
 
 def test_HeaderAccept_contains_mimetype():

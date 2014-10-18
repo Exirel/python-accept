@@ -311,7 +311,9 @@ class HeaderAccept(list):
         any item's mimetype.
 
         """
-        if hasattr(value, 'mimetype') and hasattr(value, 'quality'):
+        if (hasattr(value, 'mimetype')
+            and hasattr(value, 'quality')
+            and hasattr(value, 'options')):
             return any(
                 # Will call value.__eq__(item)
                 # If value does not override __eq__
@@ -323,13 +325,15 @@ class HeaderAccept(list):
         # Try with a (mimetype, quality) value
         try:
             mimetype, quality = value
+        except ValueError:
+            # Can not unpack value... too bad but we can ignore this case.
+            pass
+        else:
+            d_quality = D(quality)  # We don't need to catch errors here
             return any(
-                mimetype == item.mimetype and str(quality) == str(item.quality)
+                mimetype == item.mimetype and d_quality == item.quality
                 for item in self
             )
-        except ValueError:
-            # Can not unpack value... too bad.
-            pass
 
         # Guess the value is a string to compare with any item's mimetype
         return any(
