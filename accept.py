@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 HTML_MIMETYPES = [
     'text/html',
     'application/xhtml',
@@ -106,36 +104,8 @@ class HeaderAcceptValue(object):
         self.quality = float(options.get('q', 1.0)) if 'q' in options else 1.0
         self.options = options
 
-    def __cmp__(self, other):
-        """Compare with other using quality attribute.
-
-        This method will only be able to compare with other with a ``quality``
-        attribute. One may use duck typing to compare two instances of
-        different classes without error.
-
-        One is greater than other if its quality is greater. The same way,
-        it is lower than other if its quality is lower. Else, they are
-        considered equal.
-
-        If ``other`` does not have a ``quality`` attribute, a ValueError will
-        be raised.
-
-        Therefore, one will need to provide a compare method when using sorted
-        on a list containing both HeaderAcceptValue instance and invalid one.
-
-        """
-        if not hasattr(other, 'quality'):
-            raise ValueError('Can not compare with %r' % type(other))
-
-        if self.quality > other.quality:
-            return 1
-        elif self.quality < other.quality:
-            return -1
-
-        return 0
-
     def __eq__(self, other):
-        """Return True if other is considered equal to self.
+        """Return if other is considered equal to self.
 
         Both are equal if other has the same ``mimetype`` and ``quality``
         values. In any other cases, they won't be equal.
@@ -148,7 +118,7 @@ class HeaderAcceptValue(object):
         )
 
     def __ne__(self, other):
-        """Return True if other is not considered equal to self.
+        """Return if other is not considered equal to self.
 
         They are not equal if other has not the same ``mimetype`` nor
         ``quality`` values. In any other cases, they are considered equal.
@@ -160,6 +130,62 @@ class HeaderAcceptValue(object):
             self.mimetype != other.mimetype or self.quality != other.quality
         )
 
+    def __lt__(self, other):
+        """Return if self's quality is lower than other's quality.
+
+        This method will only be able to compare with other with a ``quality``
+        attribute. One may use duck typing to compare two instances of
+        different classes without error.
+
+        """
+        if not hasattr(other, 'quality'):
+            raise TypeError('unorderable types: %s < %s'
+                            % (type(self), type(other)))
+
+        return self.quality < other.quality
+
+    def __le__(self, other):
+        """Return if self's quality is lower or equal than other's quality.
+
+        This method will only be able to compare with other with a ``quality``
+        attribute. One may use duck typing to compare two instances of
+        different classes without error.
+
+        """
+        if not hasattr(other, 'quality'):
+            raise TypeError('unorderable types: %s < %s'
+                            % (type(self), type(other)))
+
+        return self.quality <= other.quality
+
+    def __gt__(self, other):
+        """Return if self's quality is greater than other's quality.
+
+        This method will only be able to compare with other with a ``quality``
+        attribute. One may use duck typing to compare two instances of
+        different classes without error.
+
+        """
+        if not hasattr(other, 'quality'):
+            raise TypeError('unorderable types: %s < %s'
+                            % (type(self), type(other)))
+
+        return self.quality > other.quality
+
+    def __ge__(self, other):
+        """Return if self's quality is greater or equal than other's quality.
+
+        This method will only be able to compare with other with a ``quality``
+        attribute. One may use duck typing to compare two instances of
+        different classes without error.
+
+        """
+        if not hasattr(other, 'quality'):
+            raise TypeError('unorderable types: %s < %s'
+                            % (type(self), type(other)))
+
+        return self.quality >= other.quality
+
     def to_http(self):
         """Return the HTTP Header string value of the Accept header value.
 
@@ -167,7 +193,7 @@ class HeaderAcceptValue(object):
 
         """
         options = [
-            '='.join([key, value]) for key, value in self.options.iteritems()
+            '='.join([key, value]) for key, value in self.options.items()
         ]
         return ';'.join(
             [self.mimetype] + options

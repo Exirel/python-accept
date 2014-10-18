@@ -17,9 +17,9 @@ def test_split_accept_header():
     accept_header = 'text/html'
     result = accept.split_accept_header(accept_header)
 
-    assert result.next() == 'text/html'
+    assert next(result) == 'text/html'
     with raises(StopIteration):
-        result.next()
+        next(result)
 
 
 def test_split_accept_header_with_q():
@@ -32,9 +32,9 @@ def test_split_accept_header_with_q():
     accept_header = 'text/html;q=1.0'
     result = accept.split_accept_header(accept_header)
 
-    assert result.next() == 'text/html;q=1.0'
+    assert next(result) == 'text/html;q=1.0'
     with raises(StopIteration):
-        result.next()
+        next(result)
 
 
 def test_split_accept_header_multiple_values():
@@ -49,19 +49,19 @@ def test_split_accept_header_multiple_values():
     accept_header = 'text/html,application/xml'
     result = accept.split_accept_header(accept_header)
 
-    assert result.next() == 'text/html'
-    assert result.next() == 'application/xml'
+    assert next(result) == 'text/html'
+    assert next(result) == 'application/xml'
     with raises(StopIteration):
-        result.next()
+        next(result)
 
     # Same with space
     accept_header = 'text/html, application/xml'
     result = accept.split_accept_header(accept_header)
 
-    assert result.next() == 'text/html'
-    assert result.next() == 'application/xml'
+    assert next(result) == 'text/html'
+    assert next(result) == 'application/xml'
     with raises(StopIteration):
-        result.next()
+        next(result)
 
 
 def test_split_accept_header_multiple_values_and_quality():
@@ -77,19 +77,19 @@ def test_split_accept_header_multiple_values_and_quality():
     accept_header = 'text/html,application/xml;q=0.8'
     result = accept.split_accept_header(accept_header)
 
-    assert result.next() == 'text/html'
-    assert result.next() == 'application/xml;q=0.8'
+    assert next(result) == 'text/html'
+    assert next(result) == 'application/xml;q=0.8'
     with raises(StopIteration):
-        result.next()
+        next(result)
 
     # Same with space
     accept_header = 'text/html, application/xml; q=0.8'
     result = accept.split_accept_header(accept_header)
 
-    assert result.next() == 'text/html'
-    assert result.next() == 'application/xml;q=0.8'
+    assert next(result) == 'text/html'
+    assert next(result) == 'application/xml;q=0.8'
     with raises(StopIteration):
-        result.next()
+        next(result)
 
 
 # -----------------------------------------------------------------------------
@@ -224,7 +224,7 @@ def test_HeaderAcceptValue_sort():
     ]
 
     # Can not be compared with object without quality
-    with raises(ValueError):
+    with raises(TypeError):
         sorted([1, 2, accept_html])
 
     class Fake(object):
