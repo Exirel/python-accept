@@ -353,7 +353,7 @@ class HeaderAccept(list):
         if self.max_quality < x.quality:
             self.max_quality = x.quality
 
-        return list.append(self, x)
+        return super(HeaderAccept, self).append(x)
 
     def to_http(self):
         """Return the HTTP Header string value of the Accept header list"""
