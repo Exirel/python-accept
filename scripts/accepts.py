@@ -3,8 +3,8 @@ from __future__ import print_function, unicode_literals
 
 from argparse import ArgumentParser
 
-from accept import parse_accept_value, split_accept_header
-from accept import HeaderAcceptList, HeaderAcceptValue
+from http_accept import parse_accept_value, split_accept_header
+from http_accept import HeaderAcceptList, HeaderAcceptValue
 
 
 if __name__ == '__main__':

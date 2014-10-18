@@ -153,7 +153,7 @@ class HeaderAcceptValue(object):
 
         """
         if not hasattr(other, 'quality'):
-            raise TypeError('unorderable types: %s < %s'
+            raise TypeError('unorderable types: %s <= %s'
                             % (type(self), type(other)))
 
         return self.quality <= other.quality
@@ -167,7 +167,7 @@ class HeaderAcceptValue(object):
 
         """
         if not hasattr(other, 'quality'):
-            raise TypeError('unorderable types: %s < %s'
+            raise TypeError('unorderable types: %s > %s'
                             % (type(self), type(other)))
 
         return self.quality > other.quality
@@ -181,7 +181,7 @@ class HeaderAcceptValue(object):
 
         """
         if not hasattr(other, 'quality'):
-            raise TypeError('unorderable types: %s < %s'
+            raise TypeError('unorderable types: %s >= %s'
                             % (type(self), type(other)))
 
         return self.quality >= other.quality
