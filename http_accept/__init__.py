@@ -1,3 +1,6 @@
+from decimal import Decimal as D
+
+
 HTML_MIMETYPES = [
     'text/html',
     'application/xhtml',
@@ -66,17 +69,17 @@ def parse_accept_value(accept_value):
     }
 
 
-class HeaderAcceptValue(object):
-    """Represent one value of an HTTP Request Accept header.
+class MediaRange(object):
+    """Represent a media-range of an HTTP Accept header.
 
-    An Accept header value is composed of a mimetype and a list of options,
-    such as ``q`` (reserved key), or any custom key. An HTTP server may use
-    one, both, or none of any information from an Accept value.
+    RFC 2616, section 14.1 defines Accept header as a list of ``media-range``
+    elements (either ``*/*``, ``type/*``, or ``type/subtype``) with parameters.
 
-    To help with sorting and comparison, this class override behavior of some
-    magical functions: __eq__, __ne__, and __cmp__. Still, an HeaderAcceptValue
-    is not an hashable, as it is still mutable (even if this is not very
-    useful, and should possibly forbidden).
+    A MediaRange is composed of a mimetype and a list of options, such as ``q``
+    (reserved key), or any custom key. An HTTP server may use one, both, or
+    none of any information from a media-range.
+
+    A MediaRange can be compared and sorted in a list of MediaRange objects.
 
     This class can be easily combined with ``parse_accept_value`` to be
     instantiated:
@@ -84,50 +87,68 @@ class HeaderAcceptValue(object):
         >>> info = parse_accept_value('text/html;q=0.8;level=1')
         >>> mimetype = info.get('mimetype')
         >>> options = info.get('options', {})
-        >>> value = HeaderAcceptValue(mimetype, **options)
-        >>> value.mimetype
+        >>> media = MediaRange(mimetype, **options)
+        >>> media.mimetype
         'text/html'
-        >>> value.quality
+        >>> media.quality
         0.8
-        >>> value.options
+        >>> media.options
         {'q': '0.8', 'level': '1'}
 
     """
     def __init__(self, mimetype, **options):
-        """Build with a mimetype and save options
+        """Build with a mimetype and options.
 
         The specific parameter ``q`` is saved into the ``quality`` attribute,
         while all options are kept in ``options`` attribute (including ``q``).
 
+        If the ``q`` parameter does not exist, the default value 1.0 is assumed
+        but the ``options`` attribute won't contain it.
+
         """
         self.mimetype = mimetype
-        self.quality = float(options.get('q', 1.0)) if 'q' in options else 1.0
-        self.options = options
+        self._quality = D(options.get('q', 1.0)) if 'q' in options else D(1.0)
+        self._raw_options = options
+        self._options = {
+            key: value
+            for key, value in options.items()
+            if 'q' != key
+        }
 
     def __eq__(self, other):
         """Return if other is considered equal to self.
 
-        Both are equal if other has the same ``mimetype`` and ``quality``
-        values. In any other cases, they won't be equal.
+        They are equal if they have the same ``mimetype``, ``quality`` and
+        ``options``.
 
         """
-        if not hasattr(other, 'mimetype') or not hasattr(other, 'quality'):
+        if (not hasattr(other, 'mimetype')
+            or not hasattr(other, 'quality')
+            or not hasattr(other, 'options')):
             return False
+
         return (
-            self.mimetype == other.mimetype and self.quality == other.quality
+            self.mimetype == other.mimetype
+            and self.quality == other.quality
+            and self.options == other.options
         )
 
     def __ne__(self, other):
         """Return if other is not considered equal to self.
 
         They are not equal if other has not the same ``mimetype`` nor
-        ``quality`` values. In any other cases, they are considered equal.
+        ``quality`` values nor ``options``.
 
         """
-        if not hasattr(other, 'mimetype') or not hasattr(other, 'quality'):
+        if (not hasattr(other, 'mimetype')
+            or not hasattr(other, 'quality')
+            or not hasattr(other, 'options')):
             return True
+
         return (
-            self.mimetype != other.mimetype or self.quality != other.quality
+            self.mimetype != other.mimetype
+            or self.quality != other.quality
+            or self.options != other.options
         )
 
     def __lt__(self, other):
@@ -186,32 +207,78 @@ class HeaderAcceptValue(object):
 
         return self.quality >= other.quality
 
-    def to_http(self):
-        """Return the HTTP Header string value of the Accept header value.
+    @property
+    def quality(self):
+        """Read-only quality parameter."""
+        return self._quality
 
-        Options are not ordered because they are stored as a dict.
+    @property
+    def options(self):
+        """Read-only options parameter.
+
+        This attribute does not contains the ``q`` parameter.
 
         """
+        return self._options
+
+    def set_options(self, key, value):
+        """Set an option's value.
+        """
+        if key == 'q':
+            if self._quality != value:
+                fixed_decimal_value = D(value)
+                self._quality = fixed_decimal_value
+                self._raw_options['q'] = fixed_decimal_value
+        else:
+            self._raw_options[key] = value
+            self._options[key] = value
+
+    def to_http(self, explicit_quality=False):
+        """Return the string value of the media-range suitable for HTTP Accept.
+
+        The ``q`` parameter will be always displayed first in the list of
+        parameters. By default, if the ``q`` is not from the source options,
+        it won't appear in the result. This behavior can be changed by using
+        ``explicit_quality=True``::
+
+            >>> MediaRange('text/html', q=1.0).to_http()
+            'text/html;q=1.0'
+            >>> MediaRange('text/html').to_http()
+            'text/html'
+            >>> MediaRange('text/html').to_http(explicit_quality=True)
+            'text/html;q=1.0'
+            >>> MediaRange('text/html', aaa=1).to_http(explicit_quality=True)
+            'text/html;q=1.0;aaa=1'
+
+        """
+        # Manage to have always `q` as first parameter
+        if explicit_quality or 'q' in self._raw_options:
+            base = ['q=%0.1f' % self.quality]
+        else:
+            base = []
+
         options = [
-            '='.join([key, value]) for key, value in self.options.items()
+            '='.join([key, value])
+            for key, value in sorted(self._options.items())
         ]
+
         return ';'.join(
-            [self.mimetype] + options
+            [self.mimetype] + base + options
         )
 
 
-class HeaderAcceptList(list):
-    """Smart list for HeaderAcceptValue with specific behaviors
+class HeaderAccept(list):
+    """Smart list of MediaRange with specific behaviors
 
-    HeaderAcceptList overrides the contains list's behavior to be able to
-    compare properly two (kind of) HeaderAcceptValue.
+    HeaderAccept overrides the contains list's behavior to be able to
+    compare properly two (or kind of) MediaRange.
 
     One can use it like this:
 
-        >>> accept_html = HeaderAcceptValue('text/html', q=1.0)
-        >>> accept_text = HeaderAcceptValue('text/*', q=0.9)
-        >>> accept_wildcard = HeaderAcceptValue('*/*', q=0.8)
-        >>> accepts = HeaderAcceptList([
+        >>> accept_html = MediaRange('text/html', q=1.0)
+        >>> accept_text = MediaRange('text/*', q=0.9)
+        >>> accept_wildcard = MediaRange('*/*', q=0.8)
+        >>> accepts = HeaderAccept([
         ...     accept_html, accept_text, accept_wildcard
         ... ])
         >>> accepts.max_quality
@@ -232,8 +299,8 @@ class HeaderAcceptList(list):
 
         The comparison is done with an equality between the value provided
         and any item in self. The ``value`` might not be an instance of
-        HeaderAcceptValue, but as long as it implements an __eq__ method,
-        it might be compared with any other HeaderAcceptValue-like object
+        MediaRange, but as long as it implements an __eq__ method,
+        it might be compared with any other MediaRange-like object
         contained into self.
 
         If ``value`` doesn't have ``mimetype`` or ``quality`` attributes,
@@ -313,6 +380,6 @@ class HeaderAcceptList(list):
             ]
 
         return any(accept_value in self for accept_value in (
-            HeaderAcceptValue(mimetype, q=self.max_quality)
+            MediaRange(mimetype, q=self.max_quality)
             for mimetype in mimetypes_compare
         ))
